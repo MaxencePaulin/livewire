@@ -10,21 +10,21 @@ class GenerateSignedUploadUrl
 
     public function forLocal()
     {
-        return URL::temporarySignedRoute(
+        return $this->signedRoute(
             'livewire.upload-file', now()->addMinutes(FileUploadConfiguration::maxUploadTime())
         );
     }
 
     public function forChunks()
     {
-        return URL::temporarySignedRoute(
+        return $this->signedRoute(
             'livewire.upload-chunk', now()->addMinutes(FileUploadConfiguration::maxUploadTime())
         );
     }
 
     public function forMultipart()
     {
-        return URL::temporarySignedRoute(
+        return $this->signedRoute(
             'livewire.upload-multipart', now()->addMinutes(FileUploadConfiguration::maxUploadTime())
         );
     }
@@ -56,6 +56,15 @@ class GenerateSignedUploadUrl
             'url' => $this->finalizeSignedUri($signedRequest->getUri()),
             'headers' => $this->headers($signedRequest, $fileType),
         ];
+    }
+
+    // Signs relative so the scheme can't mismatch behind a proxy; re-absolutized
+    // for a normal-looking URL. Validate with `hasValidRelativeSignature()`.
+    public function signedRoute($name, $expiration, $parameters = [])
+    {
+        $relative = URL::temporarySignedRoute($name, $expiration, $parameters, false);
+
+        return URL::to($relative);
     }
 
     protected function headers($signedRequest, $fileType)

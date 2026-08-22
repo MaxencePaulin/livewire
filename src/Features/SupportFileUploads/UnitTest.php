@@ -12,6 +12,7 @@ use Livewire\Features\SupportDisablingBackButtonCache\SupportDisablingBackButton
 use League\Flysystem\PathTraversalDetected;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Http\Testing\FileFactory;
 use Illuminate\Support\Arr;
@@ -594,6 +595,44 @@ class UnitTest extends \Tests\TestCase
         $this->assertEquals($file->get(), $rawFileContents);
 
         $this->assertTrue($photo->isPreviewable());
+    }
+
+    public function test_preview_succeeds_when_the_proxys_forwarded_https_origin_is_not_trusted()
+    {
+        // Signs under https, then swaps https:// for http:// on the URL,
+        // simulating a proxy Laravel doesn't trust to report its real origin.
+        Storage::fake('avatars');
+
+        $photo = Livewire::test(FileUploadComponent::class)
+            ->set('photo', UploadedFile::fake()->image('avatar.jpg'))
+            ->viewData('photo');
+
+        \Livewire\Features\SupportDisablingBackButtonCache\SupportDisablingBackButtonCache::$disableBackButtonCache = false;
+
+        URL::forceScheme('https');
+        $url = $photo->temporaryUrl();
+        URL::forceScheme(null);
+
+        $this->assertStringStartsWith('https://', $url);
+
+        $url = preg_replace('#^https://#', 'http://', $url);
+
+        $this->get($url)->assertOk();
+    }
+
+    public function test_multipart_upload_succeeds_when_the_proxys_forwarded_https_origin_is_not_trusted()
+    {
+        URL::forceScheme('https');
+        $url = GenerateSignedUploadUrlFacade::forMultipart();
+        URL::forceScheme(null);
+
+        $this->assertStringStartsWith('https://', $url);
+
+        $url = preg_replace('#^https://#', 'http://', $url);
+
+        // The signature check runs before touching S3, so a 404 (unconfigured
+        // S3) rather than a 401 proves the mismatched origin was accepted.
+        $this->post($url)->assertStatus(404);
     }
 
     public function test_file_is_not_sent_on_cache_hit()

@@ -8,7 +8,7 @@ class S3MultipartUploadController extends FileUploadController
 {
     public function handleMultipart()
     {
-        abort_unless(request()->hasValidSignature(), 401);
+        abort_unless(request()->hasValidRelativeSignature(), 401);
 
         abort_unless(FileUploadConfiguration::isUsingS3(), 404);
 
